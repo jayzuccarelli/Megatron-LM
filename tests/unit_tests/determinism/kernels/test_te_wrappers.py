@@ -272,12 +272,19 @@ class TestTEWrappers:
         )
 
     @pytest.mark.parametrize("normalization", ["LayerNorm", "RMSNorm"])
+    @pytest.mark.launch_on_gb200
+    @pytest.mark.determinism_case(op_id="transformer_engine_wrappers", implementation="test:TENorm")
     def test_te_norm_replays(self, normalization):
         seeded()
         module = TENorm(_config(normalization=normalization), HIDDEN, eps=1e-5).cuda()
         x = torch.randn(TOKENS, 2, HIDDEN, device="cuda", dtype=torch.bfloat16, requires_grad=True)
         assert_module_replays_bit_exact(
-            module, (x,), replays=3, contention=True, what=f"TENorm[{normalization}]"
+            module,
+            (x,),
+            replays=3,
+            contention=True,
+            what=f"TENorm[{normalization}]",
+            configuration={"normalization": normalization, "hidden_size": HIDDEN, "eps": 1e-5},
         )
 
     @pytest.mark.skipif(TEFusedMLP is None, reason="TE operation-based MLP is unavailable")
@@ -454,6 +461,10 @@ class TestTEWrappers:
         )
 
     @pytest.mark.parametrize("backend", ["fused", "flash"])
+    @pytest.mark.launch_on_gb200
+    @pytest.mark.determinism_case(
+        op_id="transformer_engine_wrappers", implementation="test:TEDotProductAttention"
+    )
     def test_te_dot_product_attention_replays(self, backend, monkeypatch):
         """GQA causal attention; TE must pick a deterministic backward (NVTE_ALLOW_NONDETERMINISTIC_ALGO=0)."""
         seeded()
@@ -514,6 +525,13 @@ class TestTEWrappers:
                     replays=4,
                     contention=True,
                     what=f"TEDotProductAttention[{backend},runtime_cp1={packed_seq_params is not None}]",
+                    configuration={
+                        "backend": backend,
+                        "mask": "causal",
+                        "attention_dropout": 0.0,
+                        "TP": 1,
+                        "runtime_cp1": packed_seq_params is not None,
+                    },
                 )
                 assert len(result[1]) == 3  # Replay covers dQ, dK, and dV.
                 assert runtime_cp1.cp_group is cp_group
@@ -526,6 +544,8 @@ class TestTEWrappers:
                     for name in expected:
                         assert torch.isfinite(actual[name]).all()
                         assert bytes_equal(expected[name], actual[name]), name
+            if not te_dpa._attention_backends[f"use_{backend}_attention"]:
+                pytest.skip(f"TE did not select the requested {backend} attention backend")
         except (RuntimeError, AssertionError) as error:
             if "backend" in str(error).lower() and "avail" in str(error).lower():
                 pytest.skip(f"TE has no {backend} attention backend here: {error}")
