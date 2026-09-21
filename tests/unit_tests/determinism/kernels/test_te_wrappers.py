@@ -508,6 +508,11 @@ class TestTEWrappers:
         reference = None
 
         try:
+            # Resolve the backend before attaching its name to replay evidence.
+            with torch.no_grad():
+                module(q, k, v, None, AttnMaskType.causal)
+            if not te_dpa._attention_backends[f"use_{backend}_attention"]:
+                pytest.skip(f"TE did not select the requested {backend} attention backend")
             # Runtime CP1 retains its singleton metadata but must dispatch the same
             # CP-off kernels as the legacy path, including after metadata is removed.
             for packed_seq_params in (None, runtime_cp1, None):
@@ -544,8 +549,6 @@ class TestTEWrappers:
                     for name in expected:
                         assert torch.isfinite(actual[name]).all()
                         assert bytes_equal(expected[name], actual[name]), name
-            if not te_dpa._attention_backends[f"use_{backend}_attention"]:
-                pytest.skip(f"TE did not select the requested {backend} attention backend")
         except (RuntimeError, AssertionError) as error:
             if "backend" in str(error).lower() and "avail" in str(error).lower():
                 pytest.skip(f"TE has no {backend} attention backend here: {error}")
