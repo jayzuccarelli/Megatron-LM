@@ -97,7 +97,7 @@ class KernelEntry:
     # needs hardware or a dependency the CI container lacks. Visible coverage debt.
     exempt_reason: str = ""
     # Exact pytest node IDs requiring independent reference and sensitivity checks.
-    # Adopt per family; an empty tuple leaves the existing replay-only contract visible.
+    # An empty tuple keeps the family replay-only, with no accuracy/sensitivity requirement.
     author_tests: Tuple[str, ...] = ()
 
 

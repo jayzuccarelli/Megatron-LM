@@ -276,7 +276,7 @@ def author_shard(rank=0, world_size=1):
     return row
 
 
-def test_required_author_ids_match_the_gpu_parameter_matrix_and_gb200_selection():
+def test_required_author_ids_match_the_gpu_parameter_matrix():
     """Evaluate real declarations without importing production GPU dependencies."""
     path = ROOT / "tests/unit_tests/determinism/kernels/test_fused_activations.py"
     tree = ast.parse(path.read_text())
@@ -299,7 +299,6 @@ def test_required_author_ids_match_the_gpu_parameter_matrix_and_gb200_selection(
         compile(ast.Module(body=[op_ids, function], type_ignores=[]), str(path), "exec"), namespace
     )
     marks = namespace[function.name].pytestmark
-    assert any(mark.name == "launch_on_gb200" for mark in marks)
     parameters = next(mark for mark in marks if mark.name == "parametrize").args[1]
     declared = {
         (

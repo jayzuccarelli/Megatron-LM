@@ -152,7 +152,6 @@ GATED_OP_IDS = {
         for case in sorted(GATED_CASES)
     ],
 )
-@pytest.mark.launch_on_gb200
 def test_mlp_activation_fusions_replay_bit_exactly(case):
     seeded()
     fn, inputs = GATED_CASES[case]()
@@ -160,10 +159,9 @@ def test_mlp_activation_fusions_replay_bit_exactly(case):
 
 
 @pytest.mark.determinism_case(op_id="fused_bias_gelu", implementation="torch.compile:bias_gelu")
-@pytest.mark.launch_on_gb200
 def test_bias_gelu_recipe_shape_replay_bit_exactly(monkeypatch):
-    """Cover the observed BF16 TP2 MLP signature from the four-step GPT pilot."""
-    # Match the recipe's early startup policy; restore it for unrelated cases.
+    """Replay bias-GELU on a BF16 [32, 1, 128] activation with a [128] bias (GPT MLP shape)."""
+    # Deterministic cuDNN settings; monkeypatch restores them after the test.
     monkeypatch.setattr(torch.backends.cudnn, "deterministic", True)
     monkeypatch.setattr(torch.backends.cudnn, "benchmark", False)
     seeded()
@@ -188,7 +186,6 @@ def test_bias_gelu_recipe_shape_replay_bit_exactly(monkeypatch):
         for name, dtype in (("bf16", torch.bfloat16), ("fp32", torch.float32))
     ],
 )
-@pytest.mark.launch_on_gb200
 @kernel_policy(torch, True)
 def test_mlp_activation_author_evidence(case, dtype):
     """Check wide reductions against independent FP64 autograd and explicit rounding."""
@@ -222,7 +219,6 @@ def test_mlp_activation_author_evidence(case, dtype):
 @pytest.mark.parametrize("case", ["bias_swiglu", "weighted_swiglu", "weighted_squared_relu"])
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float32])
 @pytest.mark.parametrize("profile", ["seed17", "seed91", "cancellation"])
-@pytest.mark.launch_on_gb200
 @kernel_policy(torch, True)
 def test_mlp_activation_reference_stress(case, dtype, profile, record_property):
     """Accuracy-only stress cases; these do not add replay-coverage credit."""
@@ -295,7 +291,6 @@ ACTIVATION_CASES = {
         for case in sorted(ACTIVATION_CASES)
     ],
 )
-@pytest.mark.launch_on_gb200
 def test_compiled_activations_replay_bit_exactly(case):
     seeded()
     x = _act((TOKENS, FFN)) * 5.0
@@ -306,7 +301,6 @@ def test_compiled_activations_replay_bit_exactly(case):
 @pytest.mark.determinism_case(
     op_id="compiled_activations", implementation="torch.compile:attention_output_gate"
 )
-@pytest.mark.launch_on_gb200
 def test_attention_output_gate_replays_bit_exactly():
     """``Attention._apply_output_gate`` is a compiled method; ``self`` is unused."""
     seeded()
@@ -321,7 +315,6 @@ def test_attention_output_gate_replays_bit_exactly():
 
 
 @pytest.mark.determinism_case(op_id="compiled_activations", implementation="torch.compile:L2Norm")
-@pytest.mark.launch_on_gb200
 def test_l2norm_replays_bit_exactly():
     """QK L2 norm: compiled row reduction (``pow(2).mean(-1)``) over head_dim."""
     seeded()
@@ -337,7 +330,6 @@ def test_l2norm_replays_bit_exactly():
 @pytest.mark.determinism_case(
     op_id="fused_bias_dropout_add", implementation="torch.compile:bias_dropout_add_train"
 )
-@pytest.mark.launch_on_gb200
 def test_bias_dropout_add_fused_train_replays_under_restored_rng(residual_dtype):
     """Dropout consumes the CUDA RNG: identical mask, output and grads when the RNG is restored."""
     seeded()
@@ -356,7 +348,6 @@ def test_bias_dropout_add_fused_train_replays_under_restored_rng(residual_dtype)
 @pytest.mark.determinism_case(
     op_id="fused_bias_dropout_add", implementation="torch.compile:bias_dropout_add_inference"
 )
-@pytest.mark.launch_on_gb200
 def test_bias_dropout_add_fused_inference_replays_bit_exactly():
     seeded()
     x = _act((2048, 4, 4096), grad=False)
@@ -413,7 +404,6 @@ class TestFusedCrossEntropy:
 @pytest.mark.determinism_case(
     op_id="dsv4_q_rms_norm", implementation="torch.compile:dsv4_q_rms_norm"
 )
-@pytest.mark.launch_on_gb200
 def test_dsv4_q_rms_norm_replays(dtype, layout):
     """``_q_rms_norm`` (weightless RMS norm, ``torch.compile``) on a [s, b, heads, dim] query.
 

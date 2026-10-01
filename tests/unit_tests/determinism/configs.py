@@ -241,15 +241,3 @@ def required_world_size(parallelism: dict) -> int:
     cp = parallelism.get("CP", 1)
     dp = max(parallelism.get("FSDP", 1), parallelism.get("EP", 1), 1)
     return tp * pp * cp * dp
-
-
-def gb200_compatible_configs(configs: list) -> list:
-    """Mark only configurations that divide a four-GPU node; retain the H100 matrix."""
-    selected = []
-    for config in configs:
-        required = required_world_size(config.values[0])
-        marks = list(config.marks)
-        if required <= 4 and 4 % required == 0:
-            marks.append(pytest.mark.launch_on_gb200)
-        selected.append(pytest.param(*config.values, id=config.id, marks=marks))
-    return selected

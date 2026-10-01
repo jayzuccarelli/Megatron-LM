@@ -75,7 +75,6 @@ class TestTensorParallelLayers:
     @pytest.mark.parametrize(
         "deterministic_branch", [True, False], ids=["weight_index", "F.embedding"]
     )
-    @pytest.mark.launch_on_gb200
     @pytest.mark.determinism_case(
         op_id="tensor_parallel_layers", implementation="test:VocabParallelEmbedding-local"
     )

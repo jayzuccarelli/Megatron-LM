@@ -29,10 +29,7 @@ from tools.determinism.collective_reference import (
 )
 from tools.determinism.reference import assert_reference_close, assert_replay_sensitivity
 
-pytestmark = [
-    pytest.mark.skipif(not torch.cuda.is_available(), reason="needs NCCL GPUs"),
-    pytest.mark.launch_on_gb200,
-]
+pytestmark = [pytest.mark.skipif(not torch.cuda.is_available(), reason="needs NCCL GPUs")]
 
 
 @pytest.fixture(scope="module", params=(2, "world"), ids=("tp2", "tpworld"))

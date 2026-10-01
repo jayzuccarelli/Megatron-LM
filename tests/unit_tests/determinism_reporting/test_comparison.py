@@ -6,11 +6,7 @@ import pytest
 import torch
 
 from tests.unit_tests.determinism.comparison import assert_bit_exact, bytes_equal
-from tests.unit_tests.determinism.configs import (
-    PARALLELISM_CONFIGS,
-    gb200_compatible_configs,
-    required_world_size,
-)
+from tests.unit_tests.determinism.configs import PARALLELISM_CONFIGS, required_world_size
 from tools.determinism.coverage import (
     DETERMINISTIC,
     NONDETERMINISTIC,
@@ -75,23 +71,3 @@ def test_empty_model_comparisons_are_unverified(output, grads):
 def test_missing_parameter_gradient_is_a_replay_mismatch():
     with pytest.raises(ReplayMismatch, match="Grad keys"):
         assert_bit_exact(torch.ones(1), {"w": torch.ones(1)}, torch.ones(1), {})
-
-
-def test_gb200_selection_preserves_larger_configs_without_marking_them():
-    marked = gb200_compatible_configs(PARALLELISM_CONFIGS)
-    assert [p.id for p in marked] == [p.id for p in PARALLELISM_CONFIGS]
-    selected = [p for p in marked if any(m.name == "launch_on_gb200" for m in p.marks)]
-    assert {p.id for p in selected} == {
-        "tp4",
-        "ep2",
-        "tp2-ep2",
-        "fsdp4",
-        "pp2",
-        "pp4",
-        "tp2-pp2",
-        "pp2-vpp2",
-    }
-    assert all(4 % required_world_size(p.values[0]) == 0 for p in selected)
-    assert all(not p.marks for p in PARALLELISM_CONFIGS)
-    # A small configuration must still divide four; merely fitting is insufficient.
-    assert not gb200_compatible_configs([pytest.param({"TP": 3}, id="tp3")])[0].marks

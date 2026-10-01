@@ -120,10 +120,12 @@ class EvidencePlugin:
         root: Path,
         scope: str = "kernel",
         branch_sources: list[str] | None = None,
+        run_id: str = "local",
     ):
         self.directory = directory
         self.root = root
         self.scope = scope
+        self.run_id = run_id
         self.data = None
         self.branch_sources = branch_sources
         self.branches = None
@@ -184,7 +186,7 @@ class EvidencePlugin:
         self.data = {
             "schema_version": SCHEMA_VERSION,
             "evidence_scope": self.scope,
-            "run_id": os.environ.get("DETERMINISM_EVIDENCE_RUN_ID", "local"),
+            "run_id": self.run_id,
             "rank": int(os.environ.get("RANK", "0")),
             "context": _context(self.root),
             "complete": False,
@@ -283,6 +285,11 @@ def pytest_addoption(parser):
     parser.addoption("--determinism-evidence-scope", choices=("kernel", "model"), default="kernel")
     parser.addoption("--determinism-branch-coverage", action="store_true", default=False)
     parser.addoption(
+        "--determinism-evidence-run-id",
+        default="local",
+        help="Identifier shared by every rank's shard of one collection run",
+    )
+    parser.addoption(
         "--determinism-branch-source",
         action="append",
         default=[],
@@ -314,6 +321,7 @@ def pytest_configure(config):
                 Path(config.rootpath),
                 config.getoption("--determinism-evidence-scope"),
                 (sources or ["megatron/core"]) if branches else None,
+                config.getoption("--determinism-evidence-run-id"),
             ),
             "determinism-evidence",
         )

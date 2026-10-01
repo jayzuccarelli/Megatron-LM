@@ -4,7 +4,7 @@
 
 Coverage contexts describe execution, not numerical correctness of each branch.
 Compiled/device branches are outside this view. Only public coverage.py APIs are
-used, including when sharing the collector that produces ordinary CI coverage.
+used, including when sharing an active branch-mode collector (`coverage run --branch`).
 """
 
 from __future__ import annotations
@@ -83,6 +83,8 @@ class BranchRecorder:
         """Return the branch catalog and case arcs without stopping an outer collector."""
         if self.owned:
             self.collector.stop()
+        if self._hashes() != self.hashes:
+            raise ValueError("Branch source scope is missing or changed during the run")
         data = self.collector.get_data()
         data.set_query_contexts(None)
         # Empty arc sets retain unexecuted files without inventing execution.

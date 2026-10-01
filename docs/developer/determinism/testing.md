@@ -100,12 +100,16 @@ error never updates a golden value.
 3. **Review**: the PR template checkbox and the `/review` rubric
    (`skills/pr-review/references/light.md`) ask for the test explicitly.
 
-The full kernel bucket runs in the H100 unit-test recipe. Dedicated GB200
-kernel and model buckets select a four-GPU subset with `launch_on_gb200`;
-larger configurations stay in the H100 matrix. Replay reports require real
-comparisons on every rank, and the GB200 model gate requires MXFP8 and NVFP4
-evidence explicitly. See [measured coverage](./coverage.md) for the selection,
-scope, and artifacts. Scheduling a test does not establish a hardware pass.
+The kernel bucket runs in the H100 unit-test recipe
+(`tests/test_utils/recipes/h100/unit-tests.yaml`). Hardware-specific
+scheduling is exactly what these tests are meant to catch, so running the
+bucket on GB200/GB300-class runners as well (GB200 unit tests are selected by
+the `launch_on_gb200` marker) is a tracked follow-up; until then, reproduce
+findings on Blackwell hardware manually as described in
+[`status.md`](./status.md). Measured replay evidence, including author
+accuracy and sensitivity checks, is collected on demand with
+`python -m tools.determinism.run_evidence`; see
+[measured coverage](./coverage.md).
 
 Run the gate locally against `main`:
 
@@ -183,19 +187,16 @@ atomic-race negative control. Synthetic perturbations never count as production
 nondeterminism evidence.
 
 Register each required parametrized pytest node ID in `KernelEntry.author_tests`.
-The H100 and GB200 kernel report gates require both checks for every listed
-case on every rank, matching the replay signature and tensor counts. Deleted,
+The kernel-scope evidence gate (`--require-author-checks`) requires both checks
+for every listed case on every rank, matching the replay signature and tensor counts. Deleted,
 renamed, skipped, incomplete, or stale cases fail the gate. Adoption starts with
 biased SwiGLU, weighted SwiGLU, and weighted squared ReLU in FP32 and BF16;
 other entries retain their existing replay contract without an accuracy claim.
-See `test_mlp_activation_author_evidence` for the pilot implementation and
+See `test_mlp_activation_author_evidence` for an example and
 [measured coverage](./coverage.md) for report semantics and validation limits.
 
 PR evidence should link the reference/replay artifacts and separate, uninstrumented
 forward/backward timings, with the source revision, hardware, inputs, software
-versions, and deterministic/default settings. The performance driver can join
-these artifacts using the shared local-activation contract; missing/mismatched
-phases remain unverified and unbudgeted timing rows cannot give a performance
-pass. Calibrated hardware budgets and broad CI enforcement remain follow-up work;
-these accuracy checks impose no performance threshold. Investigate a reference or historical-golden mismatch
+versions, and deterministic/default settings. These accuracy checks impose no
+performance threshold. Investigate a reference or historical-golden mismatch
 before accepting a changed baseline, even when same-implementation replay passes.

@@ -1,6 +1,6 @@
 # Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
-"""Independent eager FP64 references for the three local activation pilots."""
+"""Independent eager FP64 references for bias SwiGLU, weighted SwiGLU and weighted squared ReLU."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def activation_reference(
     """Return the interface reference, reduction contract and mathematical values.
 
     No production activation, custom backward or compiled helper is reused.
-    This adapter is scoped to 2D pilot inputs and all-ones upstream gradients.
+    This adapter is scoped to 2D inputs and all-ones upstream gradients.
     """
     if case not in ("bias_swiglu", "weighted_swiglu", "weighted_squared_relu"):
         raise ValueError(f"Unsupported activation reference: {case}")
@@ -32,7 +32,7 @@ def activation_reference(
     if x.ndim != 2 or any(
         not value.requires_grad for value in values if isinstance(value, torch.Tensor)
     ):
-        raise ValueError("Pilot reference requires 2D input and every tensor gradient")
+        raise ValueError("Activation reference requires 2D input and every tensor gradient")
     if case == "weighted_squared_relu":
         activation = torch.relu(x).square()
         output = activation * values[1]

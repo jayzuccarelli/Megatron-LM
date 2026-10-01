@@ -272,7 +272,6 @@ class TestTEWrappers:
         )
 
     @pytest.mark.parametrize("normalization", ["LayerNorm", "RMSNorm"])
-    @pytest.mark.launch_on_gb200
     @pytest.mark.determinism_case(op_id="transformer_engine_wrappers", implementation="test:TENorm")
     def test_te_norm_replays(self, normalization):
         seeded()
@@ -461,7 +460,6 @@ class TestTEWrappers:
         )
 
     @pytest.mark.parametrize("backend", ["fused", "flash"])
-    @pytest.mark.launch_on_gb200
     @pytest.mark.determinism_case(
         op_id="transformer_engine_wrappers", implementation="test:TEDotProductAttention"
     )

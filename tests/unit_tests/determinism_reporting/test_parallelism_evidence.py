@@ -16,7 +16,6 @@ from tests.unit_tests.determinism.comparison import assert_bit_exact
 from tests.unit_tests.determinism.configs import (
     GPT_PARALLELISM_CONFIGS,
     apply_parallelism,
-    gb200_compatible_configs,
     moe_overrides,
     required_world_size,
 )
@@ -393,15 +392,14 @@ def test_gpt_cp_inputs_cover_sequence_once_and_keep_causal_query_mask(monkeypatc
         assert torch.equal(batch["attention_mask"][0, 0], expected)
 
 
-def test_gpt_cp_matrix_preserves_four_and_eight_gpu_selections():
-    selected = gb200_compatible_configs(GPT_PARALLELISM_CONFIGS)
-    cp = {param.id: param for param in selected if param.values[0].get("CP", 1) > 1}
+def test_gpt_cp_matrix_includes_four_and_eight_gpu_cells():
+    cp = {param.id: param for param in GPT_PARALLELISM_CONFIGS if param.values[0].get("CP", 1) > 1}
     assert set(cp) == {"cp2", "tp2-cp2", "pp2-cp2", "tp2-pp2-cp2"}
-    assert {
-        name
-        for name, param in cp.items()
-        if any(mark.name == "launch_on_gb200" for mark in param.marks)
-    } == {"cp2", "tp2-cp2", "pp2-cp2"}
+    assert {name for name, param in cp.items() if required_world_size(param.values[0]) <= 4} == {
+        "cp2",
+        "tp2-cp2",
+        "pp2-cp2",
+    }
     assert required_world_size(cp["tp2-pp2-cp2"].values[0]) == 8
 
 

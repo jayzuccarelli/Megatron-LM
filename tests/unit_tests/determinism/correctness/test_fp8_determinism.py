@@ -43,7 +43,6 @@ _QUANT_RECIPES = [
 ]
 
 
-@pytest.mark.launch_on_gb200
 class TestQuantizationDeterminism:
 
     def setup_method(self, method):

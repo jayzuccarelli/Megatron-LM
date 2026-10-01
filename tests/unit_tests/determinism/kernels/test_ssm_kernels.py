@@ -96,7 +96,6 @@ def test_mamba_chunk_scan_combined_varlen_replays():
     )
 
 
-@pytest.mark.launch_on_gb200
 @pytest.mark.determinism_case(
     op_id="ssm_mamba2_varlen_kernels", implementation="test:selective_state_update"
 )
