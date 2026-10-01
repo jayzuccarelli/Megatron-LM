@@ -35,16 +35,15 @@ saves a checkpoint at step 2, and performs four separate process launches:
 3. A new process that loads the reference checkpoint and executes steps 3–4.
 4. A resume that omits RNG restore, which must produce an observed mismatch.
 
-Both GPU adapters require the early `megatron.determinism` API from
-[MCore #7419](https://github.com/NVIDIA/Megatron-LM/pull/7419). Each worker configures
+Both GPU adapters use the early `megatron.determinism` API. Each worker configures
 the shared policy before importing training or Core, whose optional GPU backends
 can initialize CUDA during import. The training entrypoint validates the resolved
 recipe again. The CPU harness does not require the GPU startup package.
 
 For `cpu` and `mcore_gpt`, `--control optimizer`, `--control scheduler` and
 `--control dataloader` select other deliberately omitted restores. The real
-`megatron_gpt` training adapter currently supports the RNG control, using the
-existing checkpoint loader's `no_load_rng` flag. No goldens are changed.
+`megatron_gpt` training adapter supports only the RNG control, using the
+checkpoint loader's `no_load_rng` flag.
 Fresh replay compares every step; resumed runs compare every post-checkpoint
 step. Every declared rank is required, including ranks without logged loss.
 
@@ -54,19 +53,16 @@ AdamW, StepLR, dropout, and generated data. Its objective is mean squared local
 logits, not language-model cross entropy. DP/PP/VPP/EP/FSDP, MCore's distributed
 optimizer, mixed-precision master weights, FP8/FP4 and production data loaders
 need additional adapters and validation. This pilot does not certify those
-paths or the named Nemotron/DSV recipes.
+paths.
 
-The H100 and GB200 `determinism-state.yaml` recipes each select two per-step jobs: the
-`mcore_gpt` pilot and the `megatron_gpt` training adapter, with eight and four
-ranks respectively. They use the existing integration-test
-selection path; actual scheduling still depends on the CI scope and protected
-runner approval. Each also adds six stop-point jobs to nightly cadence (or an
-explicit cadence bypass): both original GPU adapters plus TP=2/PP=2 training
-with one or two virtual chunks, the precision-aware optimizer recipe below,
-and the hybrid CPU/GPU Adam recipe below,
-using steps 3 and 5 of a five-step schedule. The normal
-PR selection retains its two existing jobs. A configured recipe is not GPU
-execution evidence.
+The H100 and GB200 `determinism-state.yaml` recipes run with eight and four
+ranks per job, respectively. Each defines two per-step jobs (the `mcore_gpt`
+pilot and the `megatron_gpt` training adapter) and six nightly stop-point jobs
+using steps 3 and 5 of a five-step schedule: both GPU adapters, TP=2/PP=2
+training with one or two virtual chunks, the precision-aware optimizer recipe
+and the hybrid CPU/GPU Adam recipe below. The `Run tests` and
+`Run functional tests` PR labels bypass the cadence filter and select all
+eight jobs.
 
 ## Compare selected stop points
 
@@ -222,9 +218,7 @@ Megatron distributed optimizer with 50% CPU offload, Torch AdamW on CPU,
 TE FusedAdam on GPU, pinned CPU copies and native D2H/H2D overlap. It uses
 FP32 moments and masters and routes BF16 model shards through the
 precision-aware distributed interface, as required by Megatron's CPU offload
-CLI. This mode requires the native
-correctness fixes in [#7449](https://github.com/NVIDIA/Megatron-LM/pull/7449),
-in addition to the early startup API in #7419.
+CLI.
 
 ```bash
 python -m tools.determinism.run_state_replay \
@@ -272,7 +266,6 @@ load and checks the returned iteration. Comparison rechecks the real files;
 changed, missing or additional shards invalidate the evidence. Checkpoint
 hashes identify the loaded files; state comparisons still use raw bytes.
 
-This is an additional GPU validation recipe, **not an executed GPU result**.
 FP8/FP4, other precision-aware/offloaded optimizer configurations, other communication overlap policies,
 broader PP/VPP/CP/EP/FSDP layouts, real datasets and production recipe stop-point validation
 remain separate work. Unsupported state formats fail visibly.
@@ -352,6 +345,4 @@ execution and contention conditions and complete adapters for its state.
 The broken-resume control must change model, gradient, or optimizer state beyond
 the omitted component. An RNG-only or scheduler-counter-only difference does not
 pass the sensitivity gate. Each worker phase has a configurable `--phase-timeout`
-(default 600 seconds); interruption terminates the worker process group. GPU
-workers require the shared startup API from #7419; hybrid capture also requires
-the optimizer state fixes from #7449. These are landing prerequisites.
+(default 600 seconds); interruption terminates the worker process group.

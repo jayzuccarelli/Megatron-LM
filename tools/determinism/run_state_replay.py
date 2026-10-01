@@ -217,7 +217,7 @@ def run_protocol(
     try:
         if backend != "cpu" and not (ROOT / "megatron/determinism/__init__.py").is_file():
             raise UnverifiedState(
-                "GPU state replay requires the shared startup API from MCore #7419"
+                "GPU state replay requires the megatron.determinism package"
             )
         for name in ("reference", "repeat", "resume", "control"):
             command = [sys.executable]

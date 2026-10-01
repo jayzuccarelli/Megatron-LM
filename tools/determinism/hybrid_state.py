@@ -511,7 +511,7 @@ def capture_hybrid_adam_state(wrapper, model_chunks: list | None) -> tuple[dict,
         )
         _require(
             outer_group.get("step") == group["step"],
-            "Hybrid outer/GPU counters disagree; hybrid replay requires the optimizer state synchronization from MCore #7449",
+            "Hybrid outer and GPU optimizer step counters disagree",
         )
     children["gpu"]["options"] = {k: getattr(gpu, k) for k in GPU_POLICY}
     children["gpu"]["options"].update(
