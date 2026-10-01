@@ -66,7 +66,8 @@ def test_explicit_selection_replaces_the_default_directory(launches, tmp_path):
     launches.codes = [0, 0]
     selection = ["tests/unit_tests/determinism/kernels/test_fused_activations.py", "-k", "swiglu"]
     assert (
-        run_evidence.main(["--scope", "kernel", "--output", str(tmp_path / "o"), *selection]) == 0
+        run_evidence.main(["--scope", "kernel", "--output", str(tmp_path / "o"), "--", *selection])
+        == 0
     )
     collect = launches[1][0]
     assert collect[-3:] == selection
