@@ -421,28 +421,52 @@ def test_unimplemented_fsdp_combinations_skip_before_initialization(plan):
         runner.run({}, plan)
 
 
-def test_fsdp_gradient_capture_waits_for_reduce_and_reads_local_shards():
+def test_fsdp_gradient_capture_waits_for_reduce_and_reads_local_shards(monkeypatch):
+    import sys
+    from types import ModuleType
+
+    import torch.distributed.tensor
+
+    class FakeDTensor:
+        def __init__(self, local, reads):
+            self.local, self.reads = local, reads
+
+        def to_local(self):
+            self.reads.append(True)
+            return self.local
+
+    class FakeFSDPV1:
+        pass
+
+    class FakeFSDPV2:
+        pass
+
+    # Stand in for the GPU-only wrapper and DTensor types that collect_grads checks.
+    adapter = ModuleType("megatron.core.distributed.fsdp.mcore_fsdp_adapter")
+    adapter.FullyShardedDataParallelV1 = FakeFSDPV1
+    adapter.FullyShardedDataParallelV2 = FakeFSDPV2
+    monkeypatch.setitem(sys.modules, adapter.__name__, adapter)
+    monkeypatch.setattr(torch.distributed.tensor, "DTensor", FakeDTensor)
     ns = definitions("tests/unit_tests/determinism/utils.py", {"collect_grads"}, {"torch": torch})
     local = torch.tensor([1.0, -0.0])
     parameter = SimpleNamespace(grad=None)
     local_reads = []
 
-    def to_local():
-        local_reads.append(True)
-        return local
-
     def finish_grad_sync():
-        parameter.grad = SimpleNamespace(to_local=to_local)
+        parameter.grad = FakeDTensor(local, local_reads)
 
-    wrapped = SimpleNamespace(
-        param_and_grad_buffer=SimpleNamespace(optimizer_named_parameters=[("weight", parameter)]),
-        finish_grad_sync=finish_grad_sync,
+    wrapped = FakeFSDPV1()
+    wrapped.param_and_grad_buffer = SimpleNamespace(
+        optimizer_named_parameters=[("weight", parameter)]
     )
+    wrapped.finish_grad_sync = finish_grad_sync
     snapshot = ns["collect_grads"]([wrapped])
     assert local_reads == [True]
     assert torch.equal(snapshot["chunk0.weight"].view(torch.uint8), local.view(torch.uint8))
     local.fill_(9)
     assert snapshot["chunk0.weight"].tolist() == [1.0, -0.0]
+    with pytest.raises(NotImplementedError, match="v1"):
+        ns["collect_grads"]([FakeFSDPV2()])
 
 
 def test_fsdp_factory_uses_full_sharding_and_preserves_process_groups(monkeypatch):

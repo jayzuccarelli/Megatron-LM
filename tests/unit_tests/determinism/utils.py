@@ -67,15 +67,23 @@ def collect_grads(modules) -> dict:
     optimizer shards can be read. Eager/autograd callers retain the usual
     ``main_grad``/``grad`` path. No DTensor gather is needed for local replay.
     """
+    from torch.distributed.tensor import DTensor
+
+    from megatron.core.distributed.fsdp.mcore_fsdp_adapter import (
+        FullyShardedDataParallelV1,
+        FullyShardedDataParallelV2,
+    )
+
     grads = {}
     for i, m in enumerate(modules):
-        buffer = getattr(m, "param_and_grad_buffer", None)
-        if buffer is not None:
+        if isinstance(m, FullyShardedDataParallelV2):
+            raise NotImplementedError("Gradient snapshots support Megatron-FSDP v1 wrappers only")
+        if isinstance(m, FullyShardedDataParallelV1):
             m.finish_grad_sync()
-            for name, parameter in buffer.optimizer_named_parameters:
+            for name, parameter in m.param_and_grad_buffer.optimizer_named_parameters:
                 grad = parameter.grad
                 if grad is not None:
-                    local = grad.to_local() if hasattr(grad, "to_local") else grad
+                    local = grad.to_local() if isinstance(grad, DTensor) else grad
                     grads[f"chunk{i}.{name}"] = local.detach().clone()
             continue
         for name, p in m.named_parameters():
