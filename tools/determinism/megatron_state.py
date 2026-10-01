@@ -52,7 +52,7 @@ def capture_optimizer(optimizer, *, model_chunks: list | None = None) -> tuple[d
             continue
         if type(inner) not in (Adam, torch.optim.Adam, torch.optim.AdamW):
             raise UnverifiedState(f"Unsupported inner optimizer: {_type_name(inner)}")
-        if getattr(child.config, "use_precision_aware_optimizer", False):
+        if child.config.use_precision_aware_optimizer:
             if (
                 type(child) is not DistributedOptimizer
                 or type(inner) is not Adam

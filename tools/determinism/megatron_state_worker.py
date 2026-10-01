@@ -39,6 +39,28 @@ from tools.determinism.training_state import (
     write_snapshot,
 )
 
+# Training options whose state or schedule the adapter does not capture. Each must
+# exist on the parsed arguments and be disabled; a missing name is rejected so a
+# renamed option cannot silently pass the check.
+UNSUPPORTED_TRAINING_OPTIONS = (
+    "fp16",
+    "fp8",
+    "fp4",
+    "use_megatron_fsdp",
+    "use_torch_fsdp2",
+    "overlap_param_gather",
+    "overlap_grad_reduce",
+    "reuse_grad_buf_for_mxfp8_param_ag",
+    "async_save",
+    "no_save_optim",
+    "no_save_rng",
+    "skip_train",
+    "perform_rl_step",
+    "optimizer_cuda_graph",
+    "defer_embedding_wgrad_compute",
+    "overlap_p2p_comm_warmup_flush",
+)
+
 
 def recipe_arguments(
     world_size: int,
@@ -300,32 +322,19 @@ class TrainingCapture:
             or args.num_workers != 0
         ):
             raise UnverifiedState("Unsupported checkpoint/loader configuration")
-        for name in (
-            "fp16",
-            "fp8",
-            "fp4",
-            "use_megatron_fsdp",
-            "use_torch_fsdp2",
-            "overlap_param_gather",
-            "overlap_grad_reduce",
-            "reuse_grad_buf_for_mxfp8_param_ag",
-            "async_save",
-            "no_save_optim",
-            "no_save_rng",
-            "skip_train",
-            "perform_rl_step",
-            "optimizer_cuda_graph",
-            "defer_embedding_wgrad_compute",
-            "overlap_p2p_comm_warmup_flush",
-        ):
-            if getattr(args, name, None):
+        options = vars(args)
+        missing = [name for name in UNSUPPORTED_TRAINING_OPTIONS if name not in options]
+        if missing:
+            raise UnverifiedState(f"Training arguments lack {missing}; cannot confirm they are off")
+        for name in UNSUPPORTED_TRAINING_OPTIONS:
+            if options[name]:
                 raise UnverifiedState(f"State adapter does not cover {name}")
         hybrid = self.args.optimizer_mode == "hybrid_precision_aware_fp32"
         precision_aware = self.args.optimizer_mode in (
             "precision_aware_fp16",
             "hybrid_precision_aware_fp32",
         )
-        if bool(getattr(args, "optimizer_cpu_offload", False)) != hybrid:
+        if bool(args.optimizer_cpu_offload) != hybrid:
             raise UnverifiedState("Requested and actual optimizer offload modes disagree")
         if hybrid and (
             self.args.pipeline_size != 1
@@ -340,7 +349,7 @@ class TrainingCapture:
             or args.exp_avg_sq_dtype != torch.float32
         ):
             raise UnverifiedState("Unsupported hybrid optimizer recipe")
-        if bool(getattr(args, "use_precision_aware_optimizer", False)) != precision_aware:
+        if bool(args.use_precision_aware_optimizer) != precision_aware:
             raise UnverifiedState("Requested and actual optimizer modes disagree")
         if self.args.optimizer_mode == "precision_aware_fp16" and (
             self.args.pipeline_size != 1
@@ -357,8 +366,7 @@ class TrainingCapture:
             or args.context_parallel_size != 1
             or args.virtual_pipeline_model_parallel_size
             != (2 if self.args.virtual_pipeline_size == 2 else None)
-            or bool(getattr(args, "overlap_p2p_comm", False))
-            != (self.args.virtual_pipeline_size == 2)
+            or bool(args.overlap_p2p_comm) != (self.args.virtual_pipeline_size == 2)
         ):
             raise UnverifiedState("Expected TP=2, requested PP/VPP, CP=1 and matching P2P overlap")
         if self.args.stop_step is not None:

@@ -15,7 +15,11 @@ from tools.determinism.megatron_state import (
     capture_mock_loader_state,
     capture_model,
 )
-from tools.determinism.megatron_state_worker import TrainingCapture, recipe_arguments
+from tools.determinism.megatron_state_worker import (
+    UNSUPPORTED_TRAINING_OPTIONS,
+    TrainingCapture,
+    recipe_arguments,
+)
 from tools.determinism.training_state import (
     UnverifiedState,
     read_checkpoint_record,
@@ -206,7 +210,14 @@ def make_capture(monkeypatch, tmp_path):
         output=tmp_path / "resume",
         run_id="resume-run",
     )
-    training_args = SimpleNamespace(load=str(root / "megatron-checkpoints"), no_load_rng=False)
+    training_args = SimpleNamespace(
+        load=str(root / "megatron-checkpoints"),
+        no_load_rng=False,
+        optimizer_cpu_offload=False,
+        use_precision_aware_optimizer=False,
+        overlap_p2p_comm=False,
+        **dict.fromkeys(UNSUPPORTED_TRAINING_OPTIONS, False),
+    )
     training = SimpleNamespace(get_args=lambda: training_args, unwrap_model=lambda model: model)
     return TrainingCapture(args, training, None), training_args, record
 
@@ -720,3 +731,18 @@ def test_adam_capture_reads_live_slots_without_custom_serializer(monkeypatch):
     )
     state, _ = capture_adam_state(wrapper)
     assert state["state"]["state"]
+
+
+def test_unsupported_option_check_rejects_missing_arguments(monkeypatch, tmp_path):
+    capture, args, _ = make_capture(monkeypatch, tmp_path)
+    args.__dict__.update(
+        bf16=True,
+        use_distributed_optimizer=True,
+        deterministic_mode=True,
+        ckpt_format="torch_dist",
+        dataloader_type="single",
+        num_workers=0,
+    )
+    del args.overlap_param_gather
+    with pytest.raises(UnverifiedState, match="lack"):
+        capture.validate_configuration()

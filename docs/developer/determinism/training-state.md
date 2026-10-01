@@ -55,14 +55,12 @@ optimizer, mixed-precision master weights, FP8/FP4 and production data loaders
 need additional adapters and validation. This pilot does not certify those
 paths.
 
-The H100 and GB200 `determinism-state.yaml` recipes run with eight and four
-ranks per job, respectively. Each defines two per-step jobs (the `mcore_gpt`
-pilot and the `megatron_gpt` training adapter) and six nightly stop-point jobs
-using steps 3 and 5 of a five-step schedule: both GPU adapters, TP=2/PP=2
-training with one or two virtual chunks, the precision-aware optimizer recipe
-and the hybrid CPU/GPU Adam recipe below. The `Run tests` and
-`Run functional tests` PR labels bypass the cadence filter and select all
-eight jobs.
+These checks run only when invoked; no CI job runs them. Run them on one node
+with every GPU (`--world-size 8` on an eight-GPU node, `--world-size 4` on a
+four-GPU node). A typical validation set is the per-step protocol for both GPU
+adapters plus the stop-point comparisons below (steps 3 and 5 of a five-step
+schedule) for both GPU adapters, TP=2/PP=2 training with one or two virtual
+chunks, the precision-aware optimizer recipe and the hybrid CPU/GPU Adam recipe.
 
 ## Compare selected stop points
 
